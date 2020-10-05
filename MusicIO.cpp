@@ -89,3 +89,48 @@ void MusicIO::readMidiFile(String pathToAudioInFile, int sampleRate, MidiBuffer&
         }
     }
 }
+
+
+std::unique_ptr< AudioPluginInstance > MusicIO::loadPlugin(
+    String pathToPlugin,
+    int sampleRate,
+    int bufferSize,
+    String stateString)
+{
+    std::unique_ptr< AudioPluginInstance > plugin;
+    
+    juce::OwnedArray<PluginDescription> pluginDescriptions;
+    juce::KnownPluginList pluginList;
+    juce::AudioPluginFormatManager pluginFormatManager;
+    String errorMessage;
+    
+    pluginFormatManager.addDefaultFormats();
+    for (int i = pluginFormatManager.getNumFormats(); --i >= 0;)
+    {
+        pluginList.scanAndAddFile (
+            String (pathToPlugin),
+            true,
+            pluginDescriptions,
+            *pluginFormatManager.getFormat(i));
+    }
+    
+    plugin = pluginFormatManager.createPluginInstance (
+            *pluginDescriptions[0],
+            sampleRate,
+            bufferSize,
+            errorMessage);
+    
+    // std::cout << "[plugin] error message:" << errorMessage.toStdString() << std::endl;
+    // if (plugin == nullptr) {
+    //     std::cout << "plugin is null"<< std::endl;
+    // }
+    
+    if(stateString != ""){
+        MemoryBlock m;
+        m.fromBase64Encoding (stateString);
+        plugin->setStateInformation (m.getData(), (int) m.getSize());
+    }
+    
+    plugin->setNonRealtime (true);
+    return plugin;
+}
