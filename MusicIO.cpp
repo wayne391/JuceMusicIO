@@ -10,8 +10,15 @@
 
 using namespace juce;
 
+using AudioGraphIOProcessor = juce::AudioProcessorGraph::AudioGraphIOProcessor;
+using NodeID = juce::AudioProcessorGraph::NodeID;
+using Node = juce::AudioProcessorGraph::Node;
 
-MusicIO::AudioFileInfo MusicIO::readWavFile(String pathToAudioInFile, AudioBuffer<float>& inBuffer)
+// Simple IO
+MusicIO::AudioFileInfo MusicIO::readWavFile(
+    String pathToAudioInFile,
+    AudioBuffer<float>& inBuffer,
+    bool isMono)
 {
     AudioFileInfo inputFileInfo;
     AudioFormatManager formatManager;
@@ -19,20 +26,29 @@ MusicIO::AudioFileInfo MusicIO::readWavFile(String pathToAudioInFile, AudioBuffe
     formatManager.registerBasicFormats();
     std::unique_ptr<AudioFormatReader> reader (formatManager.createReaderFor (File (pathToAudioInFile)));
 
+    int numChannels = 2;
+    bool flag = true;
+    if(isMono)
+    {
+        numChannels = 1;
+        flag = false; // fillLeftoverChannelsWithCopies
+    }
+    
+    
     if (reader != nullptr)
     {
-        inBuffer.setSize(2, (int)reader->lengthInSamples);
+        inBuffer.setSize(numChannels, (int)reader->lengthInSamples);
         reader->read(&inBuffer,
                      0,
                      (int)reader->lengthInSamples,
                      0,
                      true,
-                     true);
+                     flag);
     }
     inputFileInfo.sampleRate = (int)reader->sampleRate;
     inputFileInfo.bitsPerSample = (int)reader->bitsPerSample;
     inputFileInfo.sampleLength = (int)reader->lengthInSamples;
-    inputFileInfo.numChannels = 2;
+    inputFileInfo.numChannels = numChannels;
     
     std::cout << "sampleLength:" << inputFileInfo.sampleLength << std::endl;
     std::cout << "numChannels:" << inputFileInfo.numChannels << std::endl;
@@ -95,6 +111,9 @@ std::unique_ptr< AudioPluginInstance > MusicIO::loadPlugin(
     String pathToPlugin,
     int sampleRate,
     int bufferSize,
+    int inChannel,
+    int outChannel,
+    bool isInstrument,
     String stateString)
 {
     std::unique_ptr< AudioPluginInstance > plugin;
@@ -120,17 +139,49 @@ std::unique_ptr< AudioPluginInstance > MusicIO::loadPlugin(
             bufferSize,
             errorMessage);
     
+    // error handling
     // std::cout << "[plugin] error message:" << errorMessage.toStdString() << std::endl;
     // if (plugin == nullptr) {
     //     std::cout << "plugin is null"<< std::endl;
     // }
     
-    if(stateString != ""){
+    // load state
+    if(stateString != "")
+    {
+        std::cout << " [i] using state" << std::endl;
         MemoryBlock m;
-        m.fromBase64Encoding (stateString);
+        m.fromBase64Encoding(stateString);
         plugin->setStateInformation (m.getData(), (int) m.getSize());
     }
     
+    // set I/O channels
+    if(not isInstrument)
+    {
+        plugin->setPlayConfigDetails (inChannel, outChannel, sampleRate, bufferSize);
+    }
+    
+    // non-realtime
     plugin->setNonRealtime (true);
+    
+    // prepare to play
+    plugin->prepareToPlay (sampleRate, bufferSize);
     return plugin;
+}
+
+//==============================================================================
+// AudioGraph
+
+
+std::unique_ptr<MusicIO::GraphRunnerProcessor> MusicIO::loadGraph(
+    String pathToGraph,
+    int sampleRate,
+    int bufferSize)
+{
+ 
+    std::unique_ptr<MusicIO::GraphRunnerProcessor> graphRunner(
+                    new MusicIO::GraphRunnerProcessor(pathToGraph));
+    
+    graphRunner->setPlayConfigDetails (2, 2, sampleRate, bufferSize);
+    graphRunner->prepareToPlay (sampleRate, bufferSize);
+    return graphRunner;
 }
