@@ -16,14 +16,12 @@ using namespace juce;
 
 namespace MusicIO {
 
-
 struct AudioFileInfo{
     int sampleRate;
     int bitsPerSample;
     int sampleLength;
     int numChannels;
 };
-
 
 AudioFileInfo readWavFile(String pathToAudioInFile, AudioBuffer<float>& inBuffer);
 void writeWavFile(
@@ -32,6 +30,11 @@ void writeWavFile(
         int sampleRate,
         int bitsPerSample);
 void readMidiFile(String pathToAudioInFile, int sampleRate, MidiBuffer& midiBuffer);
+std::unique_ptr< AudioPluginInstance > loadPlugin(
+        String pathToPlugin,
+        int sampleRate,
+        int bufferSize,
+        String stateString="");
 
 } // namespace MusicIO
 
